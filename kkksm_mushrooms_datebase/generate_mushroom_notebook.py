@@ -60,6 +60,7 @@ def common_imports_cell() -> dict[str, object]:
             RANDOM_STATE,
             RandomForestClassifier,
             class_balance_table,
+            evaluate_models,
             load_data,
             load_dataset,
             missing_values_table,
@@ -487,6 +488,10 @@ def preprocessing_section(include_model_preview: bool = False) -> list[dict[str,
             Histogramy pomagaja zrozumiec rozklad kategorii dla cech,
             ktore moga miec duze znaczenie przy rozroznianiu grzybow jadalnych
             i trujacych.
+
+            W przypadku datasetu mushroom surowe kody literowe zostaly
+            automatycznie zamienione na pelne, czytelne nazwy kategorii,
+            aby prezentacja wynikow byla bardziej zrozumiala.
             """
         ),
         code_cell(
@@ -509,6 +514,7 @@ def preprocessing_section(include_model_preview: bool = False) -> list[dict[str,
                 preprocessed["X_train_encoded"],
                 preprocessed["y_train"],
                 top_n=12,
+                feature_columns=preprocessed["feature_columns"],
             )
             top_correlations
             """

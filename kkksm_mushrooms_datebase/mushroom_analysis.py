@@ -96,6 +96,102 @@ DATASET_CONFIGS = {
         ],
     },
 }
+MUSHROOM_VALUE_LABELS = {
+    "class": {"e": "edible", "p": "poisonous"},
+    "cap_shape": {
+        "b": "bell",
+        "c": "conical",
+        "x": "convex",
+        "f": "flat",
+        "k": "knobbed",
+        "s": "sunken",
+    },
+    "cap_surface": {"f": "fibrous", "g": "grooves", "y": "scaly", "s": "smooth"},
+    "cap_color": {
+        "n": "brown",
+        "b": "buff",
+        "c": "cinnamon",
+        "g": "gray",
+        "r": "green",
+        "p": "pink",
+        "u": "purple",
+        "e": "red",
+        "w": "white",
+        "y": "yellow",
+    },
+    "bruises": {"t": "bruises", "f": "no bruises"},
+    "odor": {
+        "a": "almond",
+        "l": "anise",
+        "c": "creosote",
+        "y": "fishy",
+        "f": "foul",
+        "m": "musty",
+        "n": "none",
+        "p": "pungent",
+        "s": "spicy",
+    },
+    "gill_attachment": {"a": "attached", "d": "descending", "f": "free", "n": "notched"},
+    "gill_spacing": {"c": "close", "w": "crowded", "d": "distant"},
+    "gill_size": {"b": "broad", "n": "narrow"},
+    "gill_color": {
+        "k": "black",
+        "n": "brown",
+        "b": "buff",
+        "h": "chocolate",
+        "g": "gray",
+        "r": "green",
+        "o": "orange",
+        "p": "pink",
+        "u": "purple",
+        "e": "red",
+        "w": "white",
+        "y": "yellow",
+    },
+    "stalk_shape": {"e": "enlarging", "t": "tapering"},
+    "stalk_root": {"b": "bulbous", "c": "club", "u": "cup", "e": "equal", "z": "rhizomorphs", "r": "rooted"},
+    "stalk_surface_above_ring": {"f": "fibrous", "y": "scaly", "k": "silky", "s": "smooth"},
+    "stalk_surface_below_ring": {"f": "fibrous", "y": "scaly", "k": "silky", "s": "smooth"},
+    "stalk_color_above_ring": {
+        "n": "brown",
+        "b": "buff",
+        "c": "cinnamon",
+        "g": "gray",
+        "o": "orange",
+        "p": "pink",
+        "e": "red",
+        "w": "white",
+        "y": "yellow",
+    },
+    "stalk_color_below_ring": {
+        "n": "brown",
+        "b": "buff",
+        "c": "cinnamon",
+        "g": "gray",
+        "o": "orange",
+        "p": "pink",
+        "e": "red",
+        "w": "white",
+        "y": "yellow",
+    },
+    "veil_type": {"p": "partial", "u": "universal"},
+    "veil_color": {"n": "brown", "o": "orange", "w": "white", "y": "yellow"},
+    "ring_number": {"n": "none", "o": "one", "t": "two"},
+    "ring_type": {"c": "cobwebby", "e": "evanescent", "f": "flaring", "l": "large", "n": "none", "p": "pendant", "s": "sheathing", "z": "zone"},
+    "spore_print_color": {
+        "k": "black",
+        "n": "brown",
+        "b": "buff",
+        "h": "chocolate",
+        "r": "green",
+        "o": "orange",
+        "u": "purple",
+        "w": "white",
+        "y": "yellow",
+    },
+    "population": {"a": "abundant", "c": "clustered", "n": "numerous", "s": "scattered", "v": "several", "y": "solitary"},
+    "habitat": {"g": "grasses", "l": "leaves", "m": "meadows", "p": "paths", "u": "urban", "w": "waste", "d": "woods"},
+}
 
 
 def get_data_path() -> Path:
@@ -147,6 +243,26 @@ def load_dataset(dataset_name: str = "mushroom") -> pd.DataFrame:
     if dataset_name == "breast_cancer":
         return load_breast_cancer_data()
     raise ValueError(f"Unsupported dataset_name: {dataset_name}")
+
+
+def decode_mushroom_value(column: str, value: object) -> str:
+    if pd.isna(value):
+        return "missing"
+    mapping = MUSHROOM_VALUE_LABELS.get(column, {})
+    return mapping.get(value, str(value))
+
+
+def get_human_readable_class_labels(class_values: list[str] | pd.Index) -> list[str]:
+    return [decode_mushroom_value(TARGET_COLUMN, value) for value in class_values]
+
+
+def humanize_encoded_feature(feature_name: str, feature_columns: list[str]) -> str:
+    for column in sorted(feature_columns, key=len, reverse=True):
+        prefix = f"{column}_"
+        if feature_name.startswith(prefix):
+            raw_value = feature_name[len(prefix) :]
+            return f"{column} = {decode_mushroom_value(column, raw_value)}"
+    return feature_name
 
 
 def class_balance_table(target: pd.Series) -> pd.DataFrame:
@@ -495,7 +611,11 @@ def plot_feature_histograms(
             axis.hist(dataset[column].dropna(), bins=20, color="#2a9d8f", edgecolor="black")
         else:
             counts = dataset[column].value_counts().sort_values(ascending=False)
-            axis.bar(counts.index.astype(str), counts.values, color="#2a9d8f")
+            labels = [
+                decode_mushroom_value(column, value) if dataset_name == "mushroom" else str(value)
+                for value in counts.index
+            ]
+            axis.bar(labels, counts.values, color="#2a9d8f")
             axis.tick_params(axis="x", rotation=45)
         axis.set_title(f"{column} distribution")
         axis.set_xlabel(column)
@@ -509,7 +629,10 @@ def plot_feature_histograms(
 
 
 def plot_top_feature_correlations(
-    X_train_encoded: pd.DataFrame, y_train: list[int] | pd.Series, top_n: int = 12
+    X_train_encoded: pd.DataFrame,
+    y_train: list[int] | pd.Series,
+    top_n: int = 12,
+    feature_columns: list[str] | None = None,
 ) -> pd.DataFrame:
     target_series = pd.Series(y_train, name="target")
     target_correlations = X_train_encoded.corrwith(target_series).abs().sort_values(ascending=False).head(top_n)
@@ -525,16 +648,22 @@ def plot_top_feature_correlations(
     plt.tight_layout()
     plt.show()
 
-    return pd.DataFrame(
+    output = pd.DataFrame(
         {"encoded_feature": target_correlations.index, "absolute_target_correlation": target_correlations.values}
     )
+    if feature_columns:
+        output["feature_description"] = output["encoded_feature"].apply(
+            lambda value: humanize_encoded_feature(value, feature_columns)
+        )
+    return output
 
 
 def plot_confusion_matrix_for_model(
     model: object, X_test_encoded: pd.DataFrame, y_test: list[int] | pd.Series, label_encoder: LabelEncoder
 ) -> pd.DataFrame:
     predictions = model.predict(X_test_encoded)
-    labels = label_encoder.classes_
+    raw_labels = label_encoder.classes_
+    labels = get_human_readable_class_labels(raw_labels)
     matrix = confusion_matrix(y_test, predictions)
     matrix_df = pd.DataFrame(matrix, index=labels, columns=labels)
 
@@ -556,7 +685,7 @@ def plot_confusion_matrix_for_model(
         classification_report(
             y_test,
             predictions,
-            target_names=label_encoder.classes_,
+            target_names=labels,
             output_dict=True,
             zero_division=0,
         )
