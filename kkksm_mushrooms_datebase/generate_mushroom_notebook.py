@@ -550,22 +550,202 @@ def build_overview_notebook() -> list[dict[str, object]]:
     return [
         markdown_cell(
             """
-            # Przygotowanie danych dla zbioru Mushroom
+            # Przygotowanie danych dla zbiorow Mushroom i Adult Income
 
             ### Preprocessing danych i analiza wstepna:
             1. [Import bibliotek](#0)
-            2. [Wczytanie danych](#1)
-            3. [Podstawowe informacje o zbiorze](#2)
-            4. [Analiza zbalansowania klas](#3)
-            5. [Podzial danych](#4)
-            6. [Analiza brakujacych wartosci](#5)
-            7. [Preprocessing danych](#6)
-            8. [Wizualizacja wybranych cech](#7)
-            9. [Korelacja cech modelu](#8)
-            10. [Podglad wynikow wszystkich modeli](#9)
+            2. [Wprowadzenie do datasetow](#1)
+            3. [Analiza datasetu Mushroom](#2)
+            4. [Analiza datasetu Adult Income](#3)
+            5. [Porownanie obu datasetow](#4)
+            """
+        ),
+        markdown_cell(
+            """
+            ### <a name='0'></a> Import bibliotek
+
+            W tym notebooku pokazujemy oba wykorzystywane datasety:
+            - `mushroom` jako dataset glowny,
+            - `adult_income` jako zewnetrzny dataset porownawczy.
+
+            Celem jest pokazanie, jak wygladaja dane jeszcze przed przejsciem
+            do osobnych analiz modeli.
+            """
+        ),
+        common_imports_cell(),
+        markdown_cell(
+            """
+            ### <a name='1'></a> Wprowadzenie do datasetow
+
+            W projekcie wykorzystujemy dwa zbiory danych:
+
+            1. `mushroom`
+               - klasyfikacja grzybow na `edible` i `poisonous`,
+               - przewaga cech kategorycznych,
+               - dataset bardzo dobrze separowalny.
+
+            2. `adult_income`
+               - klasyfikacja dochodu `<=50K` oraz `>50K`,
+               - cechy mieszane: numeryczne i kategoryczne,
+               - problem trudniejszy i bardziej realistyczny.
+            """
+        ),
+        markdown_cell(
+            """
+            ### <a name='2'></a> Analiza datasetu Mushroom
+
+            Najpierw analizujemy glowny dataset projektu, czyli `mushroom`.
             """
         ),
         *preprocessing_section(include_model_preview=True),
+        markdown_cell(
+            """
+            ### <a name='3'></a> Analiza datasetu Adult Income
+
+            Teraz pokazujemy podstawowa charakterystyke drugiego datasetu,
+            ktory sluzy jako trudniejszy punkt odniesienia dla tych samych algorytmow.
+            """
+        ),
+        code_cell(
+            """
+            adult_df = load_dataset("adult_income")
+            adult_df.head()
+            """
+        ),
+        code_cell(
+            """
+            adult_df.shape
+            """
+        ),
+        code_cell(
+            """
+            adult_balance = class_balance_table(adult_df[TARGET_COLUMN])
+            adult_balance
+            """
+        ),
+        code_cell(
+            """
+            plot_class_distribution(adult_df[TARGET_COLUMN], dataset_name="adult_income")
+            """
+        ),
+        code_cell(
+            """
+            adult_train_df, adult_validation_df, adult_test_df = split_dataset(adult_df)
+
+            pd.DataFrame(
+                [
+                    {"split": "train", "rows": len(adult_train_df)},
+                    {"split": "validation", "rows": len(adult_validation_df)},
+                    {"split": "test", "rows": len(adult_test_df)},
+                ]
+            )
+            """
+        ),
+        code_cell(
+            """
+            missing_values_table(
+                ("train", adult_train_df),
+                ("validation", adult_validation_df),
+                ("test", adult_test_df),
+            )
+            """
+        ),
+        code_cell(
+            """
+            adult_preprocessed = preprocess_after_split(adult_train_df, adult_validation_df, adult_test_df)
+
+            print("X_train_model:", adult_preprocessed["X_train_model"].shape)
+            print("X_validation_model:", adult_preprocessed["X_validation_model"].shape)
+            print("X_test_model:", adult_preprocessed["X_test_model"].shape)
+            """
+        ),
+        code_cell(
+            """
+            plot_feature_histograms(adult_train_df, dataset_name="adult_income")
+            """
+        ),
+        markdown_cell(
+            """
+            ### Wyniki wszystkich modeli dla Adult Income
+
+            Tak jak dla `mushroom`, chcemy sprawdzic rowniez,
+            jak wszystkie analizowane algorytmy radza sobie
+            na bardziej wymagajacym datasecie `adult_income`.
+            """
+        ),
+        code_cell(
+            """
+            adult_results_df = evaluate_models(adult_preprocessed).drop(columns="fitted_model")
+            adult_results_df
+            """
+        ),
+        code_cell(
+            """
+            adult_best_row = adult_results_df.iloc[0]
+            print(
+                f"Wnioski dla Adult Income: najlepszy wynik walidacyjny uzyskal model "
+                f"{adult_best_row['model']} z accuracy = {adult_best_row['validation_accuracy']:.4f} "
+                f"oraz F1 = {adult_best_row['validation_f1']:.4f}. Wyniki sa wyraznie nizsze "
+                f"niz dla mushroom, co potwierdza wieksza trudnosc tego problemu."
+            )
+            """
+        ),
+        markdown_cell(
+            """
+            **Wnioski po analizie Adult Income**
+
+            Dataset `adult_income` jest bardziej zlozony niz `mushroom`,
+            poniewaz laczy cechy liczbowe i kategoryczne. Dodatkowo problem
+            klasyfikacji dochodu jest mniej separowalny, co prowadzi
+            do bardziej realistycznych wynikow modeli.
+            """
+        ),
+        markdown_cell(
+            """
+            ### <a name='4'></a> Porownanie obu datasetow
+
+            Na koncu porownujemy podstawowe cechy obu zbiorow,
+            aby lepiej uzasadnic, dlaczego wyniki modeli roznia sie
+            pomiedzy `mushroom` a `adult_income`.
+            """
+        ),
+        code_cell(
+            """
+            mushroom_best_row = results_df.iloc[0]
+
+            pd.DataFrame(
+                [
+                    {
+                        "dataset": "mushroom",
+                        "rows": len(df),
+                        "columns": df.shape[1],
+                        "target": "edible / poisonous",
+                        "best_model": mushroom_best_row["model"],
+                        "best_validation_f1": mushroom_best_row["validation_f1"],
+                    },
+                    {
+                        "dataset": "adult_income",
+                        "rows": len(adult_df),
+                        "columns": adult_df.shape[1],
+                        "target": "<=50K / >50K",
+                        "best_model": adult_best_row["model"],
+                        "best_validation_f1": adult_best_row["validation_f1"],
+                    },
+                ]
+            )
+            """
+        ),
+        code_cell(
+            """
+            print(
+                "Wnioski koncowe: mushroom jest datasetem bardziej regularnym i latwiejszym "
+                "do klasyfikacji, natomiast adult_income jest zbiorem trudniejszym, bardziej "
+                "zroznicowanym i blizszym rzeczywistym problemom klasyfikacyjnym. "
+                "Dodatkowo porownanie najlepszych modeli pokazuje, ze nawet bardzo dobry "
+                "algorytm na trudniejszym datasecie nie osiaga wynikow tak wysokich jak na mushroom."
+            )
+            """
+        ),
     ]
 
 
