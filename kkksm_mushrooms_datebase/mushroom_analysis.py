@@ -590,10 +590,14 @@ def fit_best_model(preprocessed: dict[str, object], results_df: pd.DataFrame) ->
 def plot_class_distribution(target: pd.Series, dataset_name: str = "mushroom") -> None:
     table = class_balance_table(target)
     plt.figure(figsize=(7, 4))
-    plt.bar(table["class_name"], table["count"], color=["#2a9d8f", "#e76f51"])
+    plt.pie(
+        table["count"],
+        labels=table["class_name"],
+        autopct="%1.1f%%",
+        startangle=90,
+        colors=["#2a9d8f", "#e76f51"],
+    )
     plt.title(f"Class distribution in the {dataset_name} dataset")
-    plt.xlabel("Class")
-    plt.ylabel("Count")
     plt.tight_layout()
     plt.show()
 
@@ -638,6 +642,9 @@ def plot_top_feature_correlations(
     target_correlations = X_train_encoded.corrwith(target_series).abs().sort_values(ascending=False).head(top_n)
     correlation_frame = X_train_encoded[target_correlations.index].copy()
     correlation_frame["target"] = target_series
+    # Constant columns produce undefined correlation values and noisy runtime warnings.
+    non_constant_columns = [column for column in correlation_frame.columns if correlation_frame[column].nunique() > 1]
+    correlation_frame = correlation_frame[non_constant_columns]
 
     plt.figure(figsize=(12, 8))
     plt.imshow(correlation_frame.corr(), cmap="coolwarm", aspect="auto", vmin=-1, vmax=1)
@@ -690,6 +697,36 @@ def plot_confusion_matrix_for_model(
             zero_division=0,
         )
     ).transpose()
+
+
+def plot_model_comparison(results_df: pd.DataFrame, dataset_name: str) -> None:
+    comparison = results_df.drop(columns=["fitted_model"], errors="ignore").copy()
+    models = comparison["model"]
+    metrics = ["accuracy", "precision", "recall", "f1"]
+    x = np.arange(len(models))
+    width = 0.18
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
+
+    for axis, split_name in zip(axes, ["validation", "test"]):
+        for index, metric in enumerate(metrics):
+            axis.bar(
+                x + (index - 1.5) * width,
+                comparison[f"{split_name}_{metric}"],
+                width=width,
+                label=metric,
+            )
+        axis.set_xticks(x)
+        axis.set_xticklabels(models, rotation=20, ha="right")
+        axis.set_ylim(0, 1.05)
+        axis.set_ylabel("Score")
+        axis.set_title(f"{split_name.capitalize()} metrics")
+
+    fig.suptitle(f"Comparison of model quality on the {dataset_name} dataset")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=4)
+    plt.tight_layout()
+    plt.show()
 
 
 def run_analysis(dataset_name: str = "mushroom", print_summary: bool = True) -> dict[str, object]:

@@ -1,20 +1,32 @@
 from __future__ import annotations
 
 import json
+import inspect
 from pathlib import Path
 from textwrap import dedent
 
 
 OUTPUT_DIR = Path(__file__).resolve().parent
+AUTHORS_BLOCK = dedent(
+    """
+    **Autorzy opracowania:**
+    - Kateryna Kolioglo 113577
+    - Kacper Kukuła 113132
+    - Kacper Zamiatała 113667
+    - Szczepan Kurtek 113323
+    - Mateusz Krówczyński 89531
+    """
+).strip()
 
 
 def source(text: str) -> list[str]:
-    normalized = dedent(text).strip("\n")
+    normalized = inspect.cleandoc(text).strip("\n")
     return [line + "\n" for line in normalized.split("\n")]
 
 
 def markdown_cell(text: str) -> dict[str, object]:
-    return {"cell_type": "markdown", "metadata": {}, "source": source(text)}
+    cleaned = "\n".join(line.lstrip() for line in inspect.cleandoc(text).splitlines())
+    return {"cell_type": "markdown", "metadata": {}, "source": [line + "\n" for line in cleaned.split("\n")]}
 
 
 def code_cell(text: str) -> dict[str, object]:
@@ -68,6 +80,7 @@ def common_imports_cell() -> dict[str, object]:
             plot_class_distribution,
             plot_confusion_matrix_for_model,
             plot_feature_histograms,
+            plot_model_comparison,
             plot_top_feature_correlations,
             preprocess_after_split,
             split_dataset,
@@ -549,15 +562,36 @@ def preprocessing_section(include_model_preview: bool = False) -> list[dict[str,
 def build_overview_notebook() -> list[dict[str, object]]:
     return [
         markdown_cell(
-            """
-            # Przygotowanie danych dla zbiorow Mushroom i Adult Income
+            f"""
+            # Przygotowanie danych dla zbiorów Mushroom i Adult Income
 
-            ### Preprocessing danych i analiza wstepna:
+            {AUTHORS_BLOCK}
+
+            **Charakter dokumentu:** notebook wprowadzający do części modelowej projektu.
+
+            ### Zakres notebooka:
             1. [Import bibliotek](#0)
-            2. [Wprowadzenie do datasetow](#1)
-            3. [Analiza datasetu Mushroom](#2)
-            4. [Analiza datasetu Adult Income](#3)
-            5. [Porownanie obu datasetow](#4)
+            2. [Wprowadzenie do datasetów](#1)
+            3. [Dlaczego wykresy słupkowe zamiast kołowych](#2)
+            4. [Analiza datasetu Mushroom](#3)
+            5. [Analiza datasetu Adult Income](#4)
+            6. [Porównanie obu datasetów](#5)
+            """
+        ),
+        markdown_cell(
+            """
+            ## Powiązane notebooki
+
+            Ten notebook stanowi część wprowadzającą do dalszej analizy modelowej.
+            Kolejne etapy projektu zostały opisane w osobnych notebookach:
+            - `01_logistic_regression.ipynb`
+            - `02_decision_tree.ipynb`
+            - `03_random_forest.ipynb`
+            - `04_knn.ipynb`
+            - `05_bernoulli_naive_bayes.ipynb`
+
+            Przyjęta struktura pozwala oddzielić przygotowanie danych od analizy
+            konkretnych algorytmów klasyfikacyjnych.
             """
         ),
         markdown_cell(
@@ -565,22 +599,22 @@ def build_overview_notebook() -> list[dict[str, object]]:
             ### <a name='0'></a> Import bibliotek
 
             W tym notebooku pokazujemy oba wykorzystywane datasety:
-            - `mushroom` jako dataset glowny,
-            - `adult_income` jako zewnetrzny dataset porownawczy.
+            - `mushroom` jako dataset główny,
+            - `adult_income` jako zewnętrzny dataset porównawczy.
 
-            Celem jest pokazanie, jak wygladaja dane jeszcze przed przejsciem
+            Celem jest pokazanie, jak wyglądają dane jeszcze przed przejściem
             do osobnych analiz modeli.
             """
         ),
         common_imports_cell(),
         markdown_cell(
             """
-            ### <a name='1'></a> Wprowadzenie do datasetow
+            ### <a name='1'></a> Wprowadzenie do datasetów
 
             W projekcie wykorzystujemy dwa zbiory danych:
 
             1. `mushroom`
-               - klasyfikacja grzybow na `edible` i `poisonous`,
+               - klasyfikacja grzybów na `edible` i `poisonous`,
                - przewaga cech kategorycznych,
                - dataset bardzo dobrze separowalny.
 
@@ -592,18 +626,124 @@ def build_overview_notebook() -> list[dict[str, object]]:
         ),
         markdown_cell(
             """
-            ### <a name='2'></a> Analiza datasetu Mushroom
+            ### <a name='2'></a> Dlaczego wykresy słupkowe zamiast kołowych
 
-            Najpierw analizujemy glowny dataset projektu, czyli `mushroom`.
+            W tym projekcie korzystamy głównie z wykresów słupkowych oraz histogramów,
+            a nie z wykresów kołowych. Powody są metodologiczne:
+            - przy wielu kategoriach wykres kołowy staje się mało czytelny,
+            - trudno porównywać małe różnice między segmentami koła,
+            - wykres słupkowy lepiej pokazuje liczebności i porządek kategorii.
+
+            Dlatego dla cech takich jak `odor`, `habitat` czy `gill_color`
+            wykresy słupkowe są rozwiązaniem bardziej profesjonalnym i zgodnym
+            z dobrymi praktykami analizy danych.
             """
         ),
-        *preprocessing_section(include_model_preview=True),
         markdown_cell(
             """
-            ### <a name='3'></a> Analiza datasetu Adult Income
+            ### <a name='3'></a> Analiza datasetu Mushroom
 
-            Teraz pokazujemy podstawowa charakterystyke drugiego datasetu,
-            ktory sluzy jako trudniejszy punkt odniesienia dla tych samych algorytmow.
+            Najpierw analizujemy główny dataset projektu, czyli `mushroom`.
+            """
+        ),
+        code_cell(
+            """
+            df = load_dataset("mushroom")
+            df.head()
+            """
+        ),
+        code_cell(
+            """
+            df.shape
+            """
+        ),
+        code_cell(
+            """
+            mushroom_balance = class_balance_table(df[TARGET_COLUMN])
+            mushroom_balance
+            """
+        ),
+        code_cell(
+            """
+            plot_class_distribution(df[TARGET_COLUMN], dataset_name="mushroom")
+            """
+        ),
+        code_cell(class_conclusion_code()),
+        code_cell(
+            """
+            train_df, validation_df, test_df = split_dataset(df)
+
+            pd.DataFrame(
+                [
+                    {"split": "train", "rows": len(train_df)},
+                    {"split": "validation", "rows": len(validation_df)},
+                    {"split": "test", "rows": len(test_df)},
+                ]
+            )
+            """
+        ),
+        code_cell(
+            """
+            missing_values_table(
+                ("train", train_df),
+                ("validation", validation_df),
+                ("test", test_df),
+            )
+            """
+        ),
+        code_cell(missing_conclusion_code()),
+        code_cell(
+            """
+            preprocessed = preprocess_after_split(train_df, validation_df, test_df)
+
+            print("X_train_model:", preprocessed["X_train_model"].shape)
+            print("X_validation_model:", preprocessed["X_validation_model"].shape)
+            print("X_test_model:", preprocessed["X_test_model"].shape)
+            """
+        ),
+        code_cell(
+            """
+            plot_feature_histograms(train_df, dataset_name="mushroom")
+            """
+        ),
+        code_cell(
+            """
+            top_correlations = plot_top_feature_correlations(
+                preprocessed["X_train_encoded"],
+                preprocessed["y_train"],
+                top_n=12,
+                feature_columns=preprocessed["feature_columns"],
+            )
+            top_correlations
+            """
+        ),
+        code_cell(correlation_conclusion_code()),
+        markdown_cell(
+            """
+            ### Wyniki wszystkich modeli dla Mushroom
+
+            Na tym etapie zestawiamy pięć analizowanych algorytmów,
+            aby sprawdzić, który model najlepiej radzi sobie na głównym datasecie projektu.
+            """
+        ),
+        code_cell(
+            """
+            results_df = evaluate_models(preprocessed).drop(columns="fitted_model")
+            results_df
+            """
+        ),
+        code_cell(
+            """
+            plot_model_comparison(results_df, dataset_name="mushroom")
+            """
+        ),
+        code_cell(overview_model_conclusion_code()),
+        markdown_cell(
+            """
+            ### <a name='4'></a> Analiza datasetu Adult Income
+
+            Teraz pokazujemy podstawową charakterystykę drugiego datasetu,
+            który służy jako trudniejszy punkt odniesienia dla tych samych algorytmów.
             """
         ),
         code_cell(
@@ -681,6 +821,11 @@ def build_overview_notebook() -> list[dict[str, object]]:
         ),
         code_cell(
             """
+            plot_model_comparison(adult_results_df, dataset_name="adult_income")
+            """
+        ),
+        code_cell(
+            """
             adult_best_row = adult_results_df.iloc[0]
             print(
                 f"Wnioski dla Adult Income: najlepszy wynik walidacyjny uzyskal model "
@@ -702,10 +847,10 @@ def build_overview_notebook() -> list[dict[str, object]]:
         ),
         markdown_cell(
             """
-            ### <a name='4'></a> Porownanie obu datasetow
+            ### <a name='5'></a> Porównanie obu datasetów
 
-            Na koncu porownujemy podstawowe cechy obu zbiorow,
-            aby lepiej uzasadnic, dlaczego wyniki modeli roznia sie
+            Na końcu porównujemy podstawowe cechy obu zbiorów,
+            aby lepiej uzasadnić, dlaczego wyniki modeli różnią się
             pomiedzy `mushroom` a `adult_income`.
             """
         ),
@@ -763,14 +908,32 @@ def build_model_notebook(
             f"""
             # {title}
 
+            {AUTHORS_BLOCK}
+
+            **Charakter dokumentu:** notebook modelowy prezentujący porównanie jednego algorytmu
+            na dwóch różnych zbiorach danych.
+
             ### Analiza modelu:
             1. [Import bibliotek](#0)
             2. [Wprowadzenie do modelu](#1)
             3. [Strategia balansowania](#2)
             4. [Analiza dla datasetu Mushroom](#3)
             5. [Analiza dla datasetu Adult Income](#4)
-            6. [Porownanie wynikow](#5)
-            7. [Wnioski koncowe](#6)
+            6. [Porównanie wyników](#5)
+            7. [Wnioski końcowe](#6)
+            """
+        ),
+        markdown_cell(
+            """
+            ## Powiązane notebooki
+
+            Notebook należy do serii raportów modelowych. Powiązane dokumenty:
+            - `00_data_preprocessing_and_balance.ipynb` - przygotowanie danych i analiza wstępna,
+            - pozostałe notebooki modelowe `02-05` - analiza innych algorytmów,
+            - `README.md` - krótka mapa struktury projektu.
+
+            W tym pliku koncentrujemy się tylko na jednym algorytmie,
+            aby zachować przejrzystość metodologiczną i porównywalność wyników.
             """
         ),
         markdown_cell(
@@ -925,9 +1088,19 @@ def build_model_notebook(
 def write_readme() -> None:
     readme = dedent(
         """
-        # Analiza zbioru Mushroom
+        # Projekt analizy klasyfikacyjnej: Mushroom i Adult Income
 
-        Material zostal przygotowany w stylu zblizonym do notebookow z folderu `lab-12-04`.
+        **Autorzy opracowania:**  
+        - Kateryna Kolioglo 113577  
+        - Kacper Kukuła 113132  
+        - Kacper Zamiatała 113667  
+        - Szczepan Kurtek 113323  
+        - Mateusz Krówczyński 89531  
+        **Kontekst projektu:** porownawcza analiza wybranych algorytmow uczenia maszynowego
+        na dwoch datasetach o roznej charakterystyce i trudnosci klasyfikacji.
+
+        Material zostal przygotowany w stylu zblizonym do notebookow z folderu `lab-12-04`,
+        ale zostal uporzadkowany jako spojna dokumentacja projektu seminaryjno-projektowego.
         Kazdy plik zawiera:
         - jasny podzial na sekcje,
         - szczegolowe opisy etapow,
@@ -944,11 +1117,23 @@ def write_readme() -> None:
         - `04_knn.ipynb` - jeden algorytm, dwa datasety: `mushroom` i `adult_income`.
         - `05_bernoulli_naive_bayes.ipynb` - jeden algorytm, dwa datasety: `mushroom` i `adult_income`.
 
+        ## Logika dokumentacji
+
+        Struktura projektu zostala celowo podzielona na:
+        - notebook wprowadzajacy `00`, ktory opisuje dane, preprocessing i charakter problemu,
+        - notebooki `01-05`, z ktorych kazdy dotyczy jednego algorytmu
+          analizowanego na dwoch datasetach,
+        - pliki pomocnicze zawierajace kod i material do prezentacji.
+
+        Taki uklad odpowiada standardowi akademickiemu: oddziela przygotowanie danych,
+        uzasadnienie metodologiczne oraz czesc eksperymentalna.
+
         ## Pliki pomocnicze
 
         - `mushroom_analysis.py` - wspolne funkcje do preprocessingu, wizualizacji i oceny.
         - `generate_mushroom_notebook.py` - generator wszystkich notebookow.
         - `../adult.data` - zewnetrzny dataset Adult Income pobrany z UCI.
+        - `EXPLANATIONS_PL.md` - pomocniczy opis notebookow do wykorzystania podczas prezentacji.
 
         ## Uwagi techniczne
 
